@@ -4,7 +4,7 @@ set -e
 
 VERSION=8
 MINOR=0
-PATCH=0
+PATCH=1
 EXTRAVERSION=""
 COMMIT="(New DYGTube v8)
 
