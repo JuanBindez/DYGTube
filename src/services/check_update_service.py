@@ -1,37 +1,15 @@
-# this is part of the DYGtube Downloader project.
-#
-#
-# Copyright ©  2022 - 2024  Juan Bindez  <juanbindez780@gmail.com>
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License along
-# with this program; if not, write to the Free Software Foundation, Inc.,
-# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-#  
-# repo: https://github.com/juanBindez
-
-
-
 import time
 import json
-
-import tkinter as tk
-from tkinter import messagebox
 import urllib.request
+import urllib.error
 import webbrowser
+import flet as ft
 
+def check_new_version(current_version, page: ft.Page = None):
+    if not page:
+        return
 
-def check_new_version(current_version):
-    version_url = "https://raw.githubusercontent.com/JuanBindez/DYGTube-Downloader/main/version.json"
+    version_url = "https://raw.githubusercontent.com/JuanBindez/DYGTube/main/version.json"
 
     try:
         with urllib.request.urlopen(version_url) as response:
@@ -46,14 +24,39 @@ def check_new_version(current_version):
             message += f"\nNew:\n{version_data.get('new', '- ')}"
 
             link_update = version_data.get('link', '')
-            link = link_update[0]
+            link = link_update[0] if isinstance(link_update, list) else link_update
 
-            ask = messagebox.askokcancel("DYGTube Downloader", message + "\n\n\n\nwant to update?")
-            if ask == True:
+            def on_confirm(e):
                 webbrowser.open(link)
-                exit()
-            elif ask == False:
-                pass
+                page.window_close()
+
+            def on_cancel(e):
+                dialog.open = False
+                page.update()
+
+            dialog = ft.AlertDialog(
+                title=ft.Text("DYGTube Downloader"),
+                content=ft.Text(message + "\n\nWant to update?"),
+                actions=[
+                    ft.TextButton("Yes", on_click=on_confirm),
+                    ft.TextButton("No", on_click=on_cancel),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+            page.overlay.append(dialog)
+            dialog.open = True
+            page.update()
 
     except urllib.error.URLError:
-        messagebox.showerror("Caution", "no internet connection")
+        def close_error(e):
+            error_dialog.open = False
+            page.update()
+
+        error_dialog = ft.AlertDialog(
+            title=ft.Text("Caution"),
+            content=ft.Text("No internet connection"),
+            actions=[ft.TextButton("OK", on_click=close_error)],
+        )
+        page.overlay.append(error_dialog)
+        error_dialog.open = True
+        page.update()

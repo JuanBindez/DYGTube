@@ -1,10 +1,10 @@
 {
-    "version": "7.1.0",
-    "release_date": "05-01-2024",
-    "new": [
+    "version": "8.0.0",
+    "release_date": "06-23-2026",
+    "new": 
       "Download the new version with improvements and bug fixes."
-    ],
+    ,
     "link": [
-      "https://www.softpedia.com/get/Internet/Download-Managers/DYGTube-Downloader.shtml"
+      "https://github.com/JuanBindez/DYGTube/releases"
     ]
 }

@@ -5,3 +5,5 @@ pyinstaller-hooks-contrib
 pytubefix
 urllib3
 requests
+flet
+mutagen

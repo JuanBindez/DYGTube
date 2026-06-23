@@ -1,3 +1,3 @@
 
-VERSION = "v" + "7.1.0"
-CHECK_VERSION = "7.1.0"
+VERSION = "v" + "8.0.0"
+CHECK_VERSION = "8.0.0"

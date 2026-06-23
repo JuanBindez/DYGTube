@@ -1,8 +1,8 @@
 # this is part of the DYGtube Downloader project.
 #
-# Release: v7.1.0
+# Release: v8.0-rc1
 #
-# Copyright ©  2022 - 2024  Juan Bindez  <juanbindez780@gmail.com>
+# Copyright ©  2022 - 2026  Juan Bindez  <juanbindez780@gmail.com>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,280 +27,267 @@ import urllib3
 import time
 import base64
 import webbrowser
+import requests
+from io import BytesIO
+import flet as ft
 
-from pytubefix import YouTube
+from pytubefix import YouTube, Playlist
 from pytubefix.cli import on_progress
 from pytubefix.innertube import *
 from pytubefix.innertube import InnerTube
 from pytubefix.exceptions import AgeRestrictedError
-from tkinter import *
-from tkinter import ttk
-from tkinter import messagebox
-from tkinter import filedialog
+from mutagen.mp4 import MP4, MP4Cover
 
-from src.views.playlist_download_view import download_playlist
-from src.views.mix_view import choice_mix
 from src.views.about_view import about_software
 from src.services.images_service import *
 from src.services.debug_service import DebugInfo
 from src.services.check_update_service import check_new_version
 from src.views.version import *
 
-
 ERROR_001 = False
 ERROR_002 = False
 ERROR_003 = False
 
 
-def source_code_page():
-    webbrowser.open("https://github.com/JuanBindez/DYGTube-Downloader")
-
-
-def check_quality():
-    """this function checks the available resolution of a video."""
-    link = entrada_de_dados.get()
-    if link == "":
-        messagebox.showinfo("DYGTube Downloader", "The field is empty, paste a URL and see the available resolutions for the video you want to download.")
-    else:
-        pass
-
+def add_m4a_metadata(file_path, track_number, title, artist, album, total_tracks, cover_url=None):
     try:
-        video = YouTube(link)
-        resolucoes = [stream.resolution for stream in video.streams if stream.resolution]
-        messagebox.showinfo(title="DYGTUbe", message="The resolutions available for the video, " + video.title + ", ".join(resolucoes))
+        audio = MP4(file_path)
+        audio["\xa9nam"] = title  
+        audio["\xa9ART"] = artist  
+        audio["\xa9alb"] = album    
+        audio["\xa9day"] = "2026"   
+        audio["\xa9gen"] = "Alternative"  
+        audio["trkn"] = [(track_number, total_tracks)]
+        
+        if cover_url:
+            try:
+                response = requests.get(cover_url)
+                if response.status_code == 200:
+                    cover_data = BytesIO(response.content).getvalue()
+                    audio["covr"] = [MP4Cover(cover_data, imageformat=MP4Cover.FORMAT_JPEG)]
+            except:
+                print("Could not download cover")
+        
+        audio.save()
+        print(f"Metadata added: Track {track_number} - {title}")
     except Exception as e:
-        DebugInfo.info
-        DebugInfo.logger_error.error(e, exc_info=True)
+        print(f"Error adding metadata: {e}")
+
+def main(page: ft.Page):
+    page.title = "DYGTube Downloader"
+    page.window_width = 550
+    page.window_height = 480
+    page.window_resizable = False
     
-def download_video():
-    """Here the video is downloaded.
-      the link variable receives the url.
-    """
-    link = entrada_de_dados.get()
-    if link == "":
-        messagebox.showwarning("DYGTube Downloader", "the field is empty!")
-    elif not link == "":
-        pass
-    
-    save_path = filedialog.askdirectory()
-    video = YouTube(link)
-    print(video.title)
 
-    try:
-        video_stream = None 
+    check_new_version(CHECK_VERSION, page)
 
-        if var_1080p.get() == 1:
-            video_stream = video.streams.filter(res="1080p").first()
-        elif var_720p.get() == 1:
-            video_stream = video.streams.filter(res="720p").first()
-        elif var_480p.get() == 1:
-            video_stream = video.streams.filter(res="480p").first()
-        elif var_360p.get() == 1:
-            video_stream = video.streams.filter(res="360p").first()
-        elif var_240p.get() == 1:
-            video_stream = video.streams.filter(res="240p").first()
-        elif var_144p.get() == 1:
-            video_stream = video.streams.filter(res="144p").first()
 
-        if video_stream is not None:
-            DebugInfo.info
-            DebugInfo.logger_info.info("[INFO] (From main.py ) Starting to download video from URL: %s",link)
-            video_stream.download(save_path)
-            messagebox.showinfo("DYG Downloader", "Download Completed")
+    save_path = "downloads_DYGtube"
+    os.makedirs(save_path, exist_ok=True)
+
+    def show_message(title, message):
+        def close_dialog(e):
+            dialog.open = False
+            page.update()
+            
+        dialog = ft.AlertDialog(
+            title=ft.Text(title),
+            content=ft.Text(message),
+            actions=[ft.TextButton("OK", on_click=close_dialog)],
+        )
+        page.dialog = dialog
+        dialog.open = True
+        page.update()
+
+    def source_code_page(e):
+        webbrowser.open("https://github.com/JuanBindez/DYGTube-Downloader")
+
+    def check_quality(e):
+        link = entrada_de_dados.value
+        if not link:
+            show_message("DYGTube Downloader", "The field is empty, paste a URL...")
+            return
+
+        if check_is_playlist.value:
+            try:
+                pl = Playlist(link)
+                show_message("DYGTube", f"Playlist: {pl.title}\nTotal videos: {len(pl.videos)}")
+            except Exception as ex:
+                DebugInfo.logger_error.error(ex, exc_info=True)
+                show_message("DYGTube", "Error checking playlist.")
         else:
             try:
-                yt = YouTube(link, on_progress_callback = on_progress)
-                print(yt.title)
-                ys = yt.streams.get_highest_resolution()
-                ys.download(save_path)
-                
-                messagebox.showinfo("DYG Downloader", "Download Completed")
-                DebugInfo.info
-                DebugInfo.logger_info.info("[INFO] (From main.py ) Starting to download video from URL: %s",link)
-                
-            except AgeRestrictedError as ageerror:
-                global AGE_ERROR
-                AGE_ERROR = True
-                DebugInfo.logger_error.error(ageerror, exc_info=True)
-                messagebox.showwarning("DYG Downloader", "Attention! Age Restricted Video")
-                pass
+                video = YouTube(link)
+                resolucoes = [stream.resolution for stream in video.streams if stream.resolution]
+                show_message("DYGTube", f"Resolutions available for {video.title}: {', '.join(set(resolucoes))}")
+            except Exception as ex:
+                DebugInfo.logger_error.error(ex, exc_info=True)
 
-            except Exception as e:
-                global ERROR_001
-                ERROR_001 = True
-                messagebox.showwarning("DYG Downloader", "Something went wrong!")
-                DebugInfo.info
-                DebugInfo.bug_tag
-                DebugInfo.logger_error.error(e, exc_info=True)
-                
-            if not ERROR_001:
-                messagebox.showinfo("DYG Downloader", "Download Completed")
-            else:
-                pass
-                
-    except AgeRestrictedError:
-            messagebox.showwarning("DYG Downloader", "Age Restricted Error")
-            pass
+    def process_download_video(e):
+        global ERROR_001, ERROR_002
+        link = entrada_de_dados.value
+        if not link:
+            show_message("DYGTube Downloader", "The field is empty!")
+            return
 
-    except KeyError:
-            DebugInfo.info
-            DebugInfo.bug_tag
-            DebugInfo.logger_info.info("(Error from in main.py) Error KeyError found in download video MP4 from URL: %s",link)
-            messagebox.showwarning("DYG Downloader", "Unable to download, this is caused by some change on Youtube, try another video.")
-            DebugInfo.logger_error.error(KeyError, exc_info=True)
-    except Exception as e:
-            global ERROR_002
-            ERROR_002 = True
-            messagebox.showwarning("DYG Downloader", "Something went wrong!")
-            DebugInfo.logger_error.error(e, exc_info=True)
+        if check_is_playlist.value:
+            try:
+                pl = Playlist(link)
+                for index, video in enumerate(pl.videos, start=1):
+                    try:
+                        ys = video.streams.get_highest_resolution()
+                        ys.download(save_path)
+                    except Exception as playlist_err:
+                        DebugInfo.logger_error.error(playlist_err, exc_info=True)
+                show_message("DYG Downloader", "Playlist MP4 Download Completed")
+            except Exception as ex:
+                show_message("DYG Downloader", "Something went wrong with playlist download!")
+                DebugInfo.logger_error.error(ex, exc_info=True)
+        else:
+            video = YouTube(link)
+            try:
+                video_stream = None
+                if check_1080p.value: video_stream = video.streams.filter(res="1080p").first()
+                elif check_720p.value: video_stream = video.streams.filter(res="720p").first()
+                elif check_480p.value: video_stream = video.streams.filter(res="480p").first()
+                elif check_360p.value: video_stream = video.streams.filter(res="360p").first()
+                elif check_240p.value: video_stream = video.streams.filter(res="240p").first()
+                elif check_144p.value: video_stream = video.streams.filter(res="144p").first()
+
+                if video_stream is not None:
+                    DebugInfo.logger_info.info("[INFO] Starting download: %s", link)
+                    video_stream.download(save_path)
+                    show_message("DYG Downloader", "Download Completed")
+                else:
+                    try:
+                        yt = YouTube(link, on_progress_callback=on_progress)
+                        ys = yt.streams.get_highest_resolution()
+                        ys.download(save_path)
+                        if not ERROR_001:
+                            show_message("DYG Downloader", "Download Completed")
+                    except AgeRestrictedError as ageerror:
+                        DebugInfo.logger_error.error(ageerror, exc_info=True)
+                        show_message("DYG Downloader", "Attention! Age Restricted Video")
+                    except Exception as ex:
+                        ERROR_001 = True
+                        show_message("DYG Downloader", "Something went wrong!")
+                        DebugInfo.logger_error.error(ex, exc_info=True)
+            except AgeRestrictedError:
+                show_message("DYG Downloader", "Age Restricted Error")
+            except KeyError:
+                show_message("DYG Downloader", "Unable to download, Youtube changes detected.")
+                DebugInfo.logger_error.error(KeyError, exc_info=True)
+            except Exception as ex:
+                ERROR_002 = True
+                show_message("DYG Downloader", "Something went wrong!")
+                DebugInfo.logger_error.error(ex, exc_info=True)
+
+    def process_download_mp3(e):
+        global ERROR_003
+        link = entrada_de_dados.value
+        if not link:
+            show_message("DYGTube Downloader", "The field is empty!")
+            return
+
+        if check_is_playlist.value:
+            try:
+                pl = Playlist(link)
+                total_videos = len(pl.videos)
+                
+                for index, video in enumerate(pl.videos, start=1):
+                    try:
+                        audio_stream = video.streams.get_audio_only()
+                        clean_title = "".join(c for c in video.title if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                        filename = f"{index:02d} - {clean_title}.m4a"
+                        full_path = os.path.join(save_path, filename)
+                        
+                        audio_stream.download(output_path=save_path, filename=filename)
+                        
+                        cover_url = video.thumbnail_url if hasattr(video, 'thumbnail_url') else None
+                        
+                        add_m4a_metadata(
+                            full_path,
+                            track_number=index,
+                            title=f"{index:02d} - {video.title}",
+                            artist="Artist",
+                            album=pl.title,
+                            total_tracks=total_videos,
+                            cover_url=cover_url
+                        )
+                    except Exception as playlist_audio_err:
+                        DebugInfo.logger_error.error(playlist_audio_err, exc_info=True)
+                
+                show_message("DYG Downloader", f"Playlist Download complete! {total_videos} files processed.")
+            except Exception as ex:
+                show_message("DYG Downloader", "Something went wrong with playlist audio download!")
+                DebugInfo.logger_error.error(ex, exc_info=True)
+        else:
+            try:
+                yt = YouTube(link, on_progress_callback=on_progress)
+                ys = yt.streams.get_audio_only()
+                ys.download(save_path, mp3=True)
+                time.sleep(3)
+                if not ERROR_003:
+                    show_message("DYG Downloader", "Download Completed")
+            except AgeRestrictedError:
+                show_message("DYG Downloader", "Age Restricted Error")
+            except Exception as ex:
+                ERROR_003 = True
+                show_message("DYG Downloader", "Something went wrong!")
+                DebugInfo.logger_error.error(ex, exc_info=True)
 
   
-def download_mp3():
-    """This function downloads audio only."""
-    link = entrada_de_dados.get()
-    if link == "":
-        messagebox.showwarning("DYG Downloader", "the field is empty!")
-    elif not link == "":
-        pass
+    page.appbar = ft.AppBar(
+        title=ft.Text("DYGTube Menu"),
+        actions=[
+            ft.PopupMenuButton(
+                items=[
+                    ft.PopupMenuItem(content=ft.Text("Help"), on_click=lambda _: about_software(page)),
+                    ft.PopupMenuItem(content=ft.Text("Source Code"), on_click=source_code_page),
+                ]
+            )
+        ],
+    )
 
-    save_path = filedialog.askdirectory()
+    banner_img = ft.Image(src=f"data:image/png;base64,{BANNER_LOGO}", width=530, height=120, fit="contain")
+    entrada_de_dados = ft.TextField(label="Paste YouTube URL here", width=500)
 
-    try:
-        yt = YouTube(link, on_progress_callback=on_progress)
-        print(yt.title)
-        ys = yt.streams.get_audio_only()
-        ys.download(save_path, mp3=True)
-
-        DebugInfo.info
-        DebugInfo.logger_info.info("[INFO] (From main) Starting to download audio MP3 from URL: %s",link)
-        time.sleep(3)
-        
-    except AgeRestrictedError:
-            messagebox.showwarning("DYG Downloader", "Age Restricted Error")
-            pass
-        
-    except Exception as e:
-           
-            global ERROR_003
-            ERROR_003 = True
-            messagebox.showwarning("DYG Downloader", "Something went wrong!")
-            DebugInfo.info
-            DebugInfo.logger_error.error(e, exc_info=True)
-    if not ERROR_003:
-        messagebox.showinfo("DYG Downloader", "Download Completed")
-    else:
-        pass
-
-window = Tk()
-window.title("DYGTube Downloader")
-window.geometry("530x375")
-#window['background'] = '#373636'  
-window.resizable(False, False)# False for non-responsive window and True for responsive.
-window.attributes('-alpha',9.1)
-foto_icon = PhotoImage(data=base64.b64decode(ICON_LOGO))
-window.iconphoto(True, foto_icon)
-
-bg = PhotoImage(data=base64.b64decode(BANNER_LOGO))
-label = Label(window, image=bg, bd=0)
-label.place(x = 0,y = 0)
-
-COLOR_FRAME = '#585757'
-COLOR_BUTTON = '#191A1A'
-COLOR_LETTER = '#00E9CA'
-
-
-var_1080p = IntVar()
-var_720p = IntVar()
-var_480p = IntVar()
-var_360p = IntVar()
-var_240p = IntVar()
-var_144p = IntVar()
-
-ALTURA = 210
-
-check_1080p = Checkbutton(window,
-                         text="1080p",
-                         bd=0,
-                         variable=var_1080p,).place(x=80, y=ALTURA)
-
-check_720p = Checkbutton(window,
-                        text="720p",
-                        bd=0,
-                        variable=var_720p).place(x=149, y=ALTURA)
-
-check_480p = Checkbutton(window,
-                        text="480p",
-                        bd=0,
-                        variable=var_480p).place(x=210, y=ALTURA)
-
-check_360p = Checkbutton(window,
-                        text="360p",
-                        bd=0,
-                        variable=var_360p).place(x=270, y=ALTURA)
-
-check_240p = Checkbutton(window,
-                        text="240p",
-                        bd=0,
-                        variable=var_240p).place(x=330, y=ALTURA)
-
-check_144p = Checkbutton(window,
-                        text="144p",
-                        bd=0,
-                        variable=var_144p).place(x=390, y=ALTURA)
-
-
-def make_menu(w):
-    global the_menu_1
-    the_menu_1 = Menu(w, tearoff=0)
-    the_menu_1.add_command(label="Paste")
+    check_is_playlist = ft.Checkbox(label="Is Playlist", value=False, fill_color="#00E9CA")
     
+    check_1080p = ft.Checkbox(label="1080p", value=False)
+    check_720p = ft.Checkbox(label="720p", value=False)
+    check_480p = ft.Checkbox(label="480p", value=False)
+    check_360p = ft.Checkbox(label="360p", value=False)
+    check_240p = ft.Checkbox(label="240p", value=False)
+    check_144p = ft.Checkbox(label="144p", value=False)
 
-def show_menu(e):
-    w = e.widget
-    the_menu_1.entryconfigure("Paste",
-    command=lambda: w.event_generate("<<Paste>>"))
-    the_menu_1.tk.call("tk_popup", the_menu_1, e.x_root, e.y_root)
+    row_checkboxes = ft.Row(
+        [check_1080p, check_720p, check_480p, check_360p, check_240p, check_144p],
+        alignment=ft.MainAxisAlignment.CENTER,
+    )
 
- 
-button_quality = PhotoImage(data=base64.b64decode(ICON_QUALITY_VIDEO))
-botao_mix = Button(window,
-                image=button_quality,
-                command=check_quality,
-                width=16,
-                height=17).place(x=498, y=150)
+    btn_quality = ft.ElevatedButton("Check Quality", on_click=check_quality, width=500)
+    btn_video = ft.ElevatedButton("Download MP4", on_click=process_download_video, width=500, bgcolor='#191A1A', color='#00E9CA')
+    btn_mp3 = ft.ElevatedButton("Download MP3", on_click=process_download_mp3, width=500, bgcolor='#191A1A', color='#00E9CA')
+    
+    lbl_version = ft.Text(VERSION, size=12)
 
-make_menu(window)
-entrada_de_dados = Entry(window, width=61)
-entrada_de_dados.place(x=8, y=150)
-entrada_de_dados.bind_class("Entry", "<Button-3><ButtonRelease-3>", show_menu)
-
-
-label = Label(window,
-                text=VERSION,).place(x=4, y=345)
-
-botao_video = Button(window,
-                text="Download MP4",
-                font=('Arial'),
-                command=download_video,
-                width=57,).place(x=0, y=260)
-
-botao_mp3 = Button(window,
-                text="Download MP3",
-                command=download_mp3,
-                font=('Arial'),
-                width=57,).place(x=0, y=300)
-
-menu_barra = Menu(window)
-
-menu_arquivo = Menu(menu_barra, tearoff=0)
-menu_arquivo.add_command(label="Mix", command=choice_mix, font=('Arial'))
-menu_arquivo.add_command(label="Playlist", command=download_playlist, font=('Arial'))
-menu_arquivo.add_command(label="Help", command=about_software, font=('Arial'))
-
-menu_barra.add_cascade(label="Menu", menu=menu_arquivo)
-window.config(menu=menu_barra)
-
+    page.add(
+        ft.Column(
+            [
+                banner_img,
+                entrada_de_dados,
+                ft.Row([check_is_playlist], alignment=ft.MainAxisAlignment.CENTER),
+                row_checkboxes,
+                btn_quality,
+                btn_video,
+                btn_mp3,
+                lbl_version
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+    )
 
 if __name__ == "__main__":
-  check_new_version(CHECK_VERSION)
-  window.mainloop()
+    ft.app(target=main)

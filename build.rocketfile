@@ -1,5 +1,0 @@
-git add .
-git commit -m 'update YouTube handler lib'
-git push -u origin main
-git tag v7.1.0
-git push --tag
